@@ -20,11 +20,17 @@ jobs:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v3
       
-      - name: docker build
-        run: docker build . -t web-scraper:v1.0.0
+      - name: Docker Build
+        run: docker build . -t web-scraper:latest
         
-      - name: docker login and push
-        env:
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-        run: docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD | docker push web-scraper:v1.0.0
+      - name: Login to Dockerhub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Push build to Dockerhub
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          push: true
+          tags: okromcb2/web-scraper:latest
