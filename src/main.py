@@ -1,11 +1,21 @@
 import scrapydo
-from fastapi import FastAPI, status, HTTPException
-from fastapi.encoders import jsonable_encoder
-from starlette.responses import JSONResponse
+from fastapi import FastAPI, status
+from fastapi.responses import JSONResponse
 
 from src.spiders.xpath_spider import XpathSpider
 
 app = FastAPI()
+
+
+def get_response(status_code, status_detail, html_content):
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "code": status_code,
+            "message": status_detail,
+            "data": {"html": html_content},
+        },
+    )
 
 
 @app.get("/web-scraper/html", status_code=status.HTTP_200_OK)
@@ -15,30 +25,24 @@ async def get_element_html(url: str, element_xpath: str, search_string: str):
     scrapydo.setup()
 
     spider_result = scrapydo.run_spider(
-        XpathSpider,
-        url=url,
-        xpath=element_xpath,
-        search_string=search_string,
-    )[0]
+        XpathSpider, url=url, xpath=element_xpath, search_string=search_string
+    )[  # type: ignore
+        0
+    ]
 
     req_status = spider_result.get("status")
     req_status_detail = spider_result.get("status_detail")
+    req_html_content = spider_result.get("html_content")
 
-    if req_status == "web_element_not_found" or req_status == "multiple_elements_found":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=req_status_detail,
-        )
-    if req_status == "string_not_found":
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=req_status_detail,
-        )
-    if req_status == "string_not_found":
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=req_status_detail,
-        )
+    status_map = {
+        "found": status.HTTP_200_OK,
+        "web_element_not_found": status.HTTP_400_BAD_REQUEST,
+        "multiple_elements_found": status.HTTP_400_BAD_REQUEST,
+        "string_not_found": status.HTTP_404_NOT_FOUND,
+    }
 
-    json_compatible_item_data = jsonable_encoder(spider_result)
-    return {JSONResponse(content=json_compatible_item_data)}
+    return get_response(
+        status_map.get(req_status, status.HTTP_500_INTERNAL_SERVER_ERROR),
+        req_status_detail,
+        req_html_content,
+    )
